@@ -1,0 +1,1 @@
+{"repository_url":"https://github.com/zmap/celerybeat-mongo","numberOfLines":236,"libraries":"[datetime,mongoengine,celery,celery.schedules,traceback,celerybeatmongo.models,celery.beat,celery.utils.log,setuptools]","nestingFactor":0.25,"codeDuplication":null,"averageParameters":0.0,"averageVariables":0.25161290322580643}

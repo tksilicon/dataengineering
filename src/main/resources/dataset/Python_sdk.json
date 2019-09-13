@@ -1,0 +1,1 @@
+{"repository_url":"https://github.com/Tencent-YouTu/Python_sdk","numberOfLines":1521,"libraries":"[time,TencentYoutuyun,setuptools,.youtu,.auth,random,hmac,,binascii,base64,pkg_resources,platform,os.path,requests,json]","nestingFactor":0.16666666666666666,"codeDuplication":null,"averageParameters":5.0,"averageVariables":0.2490504612045578}

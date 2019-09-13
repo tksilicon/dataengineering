@@ -1,0 +1,1 @@
+{"repository_url":"https://github.com/pltrdy/rouge","numberOfLines":451,"libraries":"[argparse,json,os,rouge,__future__,rouge.rouge,six,rouge.rouge_score,io,itertools,re,setuptools,unittest]","nestingFactor":0.8571428571428571,"codeDuplication":null,"averageParameters":2.272727272727273,"averageVariables":0.22613065326633167}
