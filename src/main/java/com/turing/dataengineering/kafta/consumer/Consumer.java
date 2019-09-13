@@ -54,6 +54,7 @@ public class Consumer {
 	private static final String JSONT = ".json";
 	private static final String TEMPWORKDIR = "src/main/resources/tempwork";
 	private static final String USERDIR = "user.dir";
+
 	JGitService jgit;
 
 	ObjectMapper objectMapper;
@@ -105,70 +106,73 @@ public class Consumer {
 			Path p4 = FileSystems.getDefault()
 					.getPath(SRCDATASET + checkFileExists[checkFileExists.length - 1] + JSONT);
 
-			Optional<String> directoryChecking = Optional.of(System.getProperty(USERDIR)
-					+ "/src/main/resources/tempwork/" + checkFileExists[checkFileExists.length - 1] + "/");
+			if (System.getProperty("os.name").equals("Linux")) {
 
-			if (!Files.exists(p4) && !Files.isDirectory(Paths.get(directoryChecking.get()))) {
-				logger.info("json doesnt exists/repository doesnt exists");
-				/**
-				 * json and directory doesnt exist, clone it first and check if processing has
-				 * been done else process
-				 * 
-				 */
+				Optional<String> directoryChecking = Optional.of(System.getProperty(USERDIR)
+						+ "/src/main/resources/tempwork/" + checkFileExists[checkFileExists.length - 1] + "/");
 
-				jgit.cloneGit(str, checkFileExists[checkFileExists.length - 1]);
+				if (!Files.exists(p4) && !Files.isDirectory(Paths.get(directoryChecking.get()))) {
+					logger.info("json doesnt exists/repository doesnt exists");
+					/**
+					 * json and directory doesnt exist, clone it first and check if processing has
+					 * been done else process
+					 * 
+					 */
 
-				Map<String, DataEnginnerModel> map = getAnalysis(
-						jgit.searchRepository(checkFileExists[checkFileExists.length - 1]), str,
-						checkFileExists[checkFileExists.length - 1]);
+					jgit.cloneGit(str, checkFileExists[checkFileExists.length - 1]);
 
-				String firstKey = map.keySet().stream().findFirst().get();
-				DataEnginnerModel body = map.get(firstKey);
+					Map<String, DataEnginnerModel> map = getAnalysis(
+							jgit.searchRepository(checkFileExists[checkFileExists.length - 1]), str,
+							checkFileExists[checkFileExists.length - 1]);
 
-				FileUtils.touch(new File(SRCDATASET + firstKey + JSONT));
-				File file2 = new File(SRCDATASET + firstKey + JSONT);
+					String firstKey = map.keySet().stream().findFirst().get();
+					DataEnginnerModel body = map.get(firstKey);
 
-				try (FileWriter writer = new FileWriter(file2);) {
-					writer.write(objectMapper.writeValueAsString(body));
+					FileUtils.touch(new File(SRCDATASET + firstKey + JSONT));
+					File file2 = new File(SRCDATASET + firstKey + JSONT);
 
-				} catch (Exception e) {
-					logger.info(e.getMessage());
+					try (FileWriter writer = new FileWriter(file2);) {
+						writer.write(objectMapper.writeValueAsString(body));
+
+					} catch (Exception e) {
+						logger.info(e.getMessage());
+					}
+
+				} else if (!Files.exists(p4) && Files.isDirectory(Paths.get(directoryChecking.get()))) {
+
+					logger.info("json doesnt exists/repository exists");
+
+					/**
+					 * 
+					 * json doesnt exist but directory exist so we check if processing has been done
+					 * else process
+					 * 
+					 */
+
+					Map<String, DataEnginnerModel> map = getAnalysis(
+							jgit.searchRepository(checkFileExists[checkFileExists.length - 1]), str,
+							checkFileExists[checkFileExists.length - 1]);
+
+					String firstKey = map.keySet().stream().findFirst().get();
+					DataEnginnerModel body = map.get(firstKey);
+
+					FileUtils.touch(new File(SRCDATASET + firstKey + JSONT));
+					File file2 = new File(SRCDATASET + firstKey + JSONT);
+
+					try (FileWriter writer = new FileWriter(file2);) {
+						writer.write(objectMapper.writeValueAsString(body));
+
+					} catch (Exception e) {
+
+					}
+
+				} else if (Files.exists(p4)) {
+					// do nothing
+					logger.info(
+							"json exists/we dont care about repository/if you want to force another analysis. Use the force/update analysis feature");
 				}
 
-			} else if (!Files.exists(p4) && Files.isDirectory(Paths.get(directoryChecking.get()))) {
-
-				logger.info("json doesnt exists/repository exists");
-
-				/**
-				 * 
-				 * json doesnt exist but directory exist so we check if processing has been done
-				 * else process
-				 * 
-				 */
-
-				Map<String, DataEnginnerModel> map = getAnalysis(
-						jgit.searchRepository(checkFileExists[checkFileExists.length - 1]), str,
-						checkFileExists[checkFileExists.length - 1]);
-
-				String firstKey = map.keySet().stream().findFirst().get();
-				DataEnginnerModel body = map.get(firstKey);
-
-				FileUtils.touch(new File(SRCDATASET + firstKey + JSONT));
-				File file2 = new File(SRCDATASET + firstKey + JSONT);
-
-				try (FileWriter writer = new FileWriter(file2);) {
-					writer.write(objectMapper.writeValueAsString(body));
-
-				} catch (Exception e) {
-
-				}
-
-			} else if (Files.exists(p4)) {
-				// do nothing
-				logger.info(
-						"json exists/we dont care about repository/if you want to force another analysis. Use the force/update analysis feature");
 			}
-
 		}
 
 		/**

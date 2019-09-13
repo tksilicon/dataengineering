@@ -4,27 +4,27 @@ Expectation - Obtain large amount of data and process based on given constraints
 
 Solution - Microservices is appropriate for developing applications that can take adavantage of nano/micro instances. Given my proficiency in Spring Boot, it was used to develop the application. 
 
-Architecture - The concept of producer/consumer was utilized. This module is the producer and it takes advantage of many data architect frameworks and libraries written in Java to develop the solution. 
+Architecture - The concept of producer/consumer was utilized. This module is the consumer and it takes advantage of many data architect frameworks and libraries written in Java to develop the solution. 
 
 Spring Boot - foremost microservices Java framework which can be used to develop production grade applications
 
 Apache Spark - is a unified analytics engine for large-scale data processing. Reading a file of 100,000 lines is a walk in the park for the framework, so it serves as a means of loading the data, dividing it into batches and forward to the consumer for processing of application logic.
 
-Apache Kafka - is one of the most efficient streaming frameworks which enables messaging and queuing across between microservices. 
+Apache Kafka - is one of the most efficient streaming frameworks which enables messaging and queuing across and between microservices. 
 
-The producer module (dataengineeringengine) loads the files into memory and has a controller endpoint which will be curl (ed) to trigger analysis. File can be uploaded too but for development purposes, there is a sample list take from the 100,000 URLs csv file provided.
+The producer module (dataengineeringengine) loads the files into memory and has a controller endpoint which will be curl (ed) to trigger analysis. File can be uploaded too but for development purposes, there is a sample list taken from the 100,000 URLs csv file provided.
 
 To run the application and process github respository sample provided Apache Kafta have to be installed on the system.  Alongside Zookeeper. Direct installation or docker. For Mac OS
 
 Direct installation:
 
-$ brew cask install java
-$ brew install kafka
+$ brew cask install java  
+$ brew install kafka  
 
-Start Zookeeper:
+Start Zookeeper:  
 $ zookeeper-server-start /usr/local/etc/kafka/zookeeper.properties
 
-Start Kafka server:
+Start Kafka server:  
 $ kafka-server-start /usr/local/etc/kafka/server.properties
 
 Docker
@@ -43,10 +43,10 @@ Consumer
 git clone https://github.com/tksilicon/dataengineering.git
 cd  dataengineering
 
-mvn install
-mvn spring-boot:run
+mvn install  
+mvn spring-boot:run  
 
-The above command will spurn the producer to send all repositories to proceess to the consumer. The processed files in json as expected is found under "src/main/resources/dataset"
+The above command will get the consumer ready to accept repository URLs to process. The processed files in json as expected is found under "src/main/resources/dataset" on local and in on the Linux environment and also AWS - /var/app/current/src/main/resources/dataset/
 
 Because this is heavy data processing, taking advantage of aws elastic beanstalk services, the application was deployed on beanstalk which has the capability to scale the application and create multiple instances and load balance them and share the workload.
 
