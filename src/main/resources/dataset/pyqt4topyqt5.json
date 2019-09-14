@@ -1,1 +1,0 @@
-{"repository_url":"https://github.com/rferrazz/pyqt4topyqt5","numberOfLines":3093,"libraries":"[os,glob,re,shutil,argparse,sys,tokenize,subprocess,stat,datetime,codecs,qtclass]","nestingFactor":9.5,"codeDuplication":null,"averageParameters":1.0,"averageVariables":0.1527700055959709}

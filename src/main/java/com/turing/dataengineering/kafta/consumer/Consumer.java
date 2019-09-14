@@ -2,28 +2,26 @@ package com.turing.dataengineering.kafta.consumer;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,9 +29,9 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.turing.dataengineering.model.DataEnginnerModel;
-import com.turing.dataengineering.model.GitHubAccounts;
 import com.turing.dataengineering.service.JGitService;
 
 /**
@@ -50,10 +48,13 @@ public class Consumer {
 
 	private static final String COMMENTS = "\"\"\"";
 	private static final String IMPORTCOM = "import";
-	private static final String SRCDATASET = "src/main/resources/dataset/";
+	private static final String DATASET = System.getProperty("user.dir")+ "/dataset/";
 	private static final String JSONT = ".json";
 	private static final String TEMPWORKDIR = "src/main/resources/tempwork";
-	private static final String USERDIR = "user.dir";
+	private static final String GROUPID = "group_id";
+	private static final String TOPIC = "users";
+
+	Map<String, DataEnginnerModel> results = new LinkedHashMap<>();
 
 	JGitService jgit;
 
@@ -62,8 +63,11 @@ public class Consumer {
 	@Autowired
 	public Consumer(JGitService jgit) {
 		this.jgit = jgit;
+		
 
 	}
+
+	
 
 	/**
 	 * 
@@ -72,116 +76,37 @@ public class Consumer {
 	 * @throws IOException
 	 */
 
-	@KafkaListener(topics = "szghaz9h-users", groupId = "szghaz9h-consumers")
+	@KafkaListener(topics = TOPIC, groupId = GROUPID)
 	public void consume(String message) throws IOException {
 		logger.info("Consuming message");
+		logger.info(message);
 
-		/**
-		 * 
-		 * Delete the temporary working directory where the repositories are cloned if
-		 * it exist. And create an objectmapper to convert messages to json string
-		 * 
-		 * GitHubAccounts is used to deserialize the string to a GitHubAccount object
-		 * for processing
-		 * 
-		 * and fetch the URLS sent in this message
-		 */
-		objectMapper = new ObjectMapper();
-		GitHubAccounts git = objectMapper.readValue(message, GitHubAccounts.class);
-		List<String> records = git.getListOfUrls();
+		String[] checkFileExists = message.split("/");
 
-		/**
-		 * 
-		 * Iterate through the list of URLs to clone them with jgit Clone repositories
-		 * directories if they don't exist
-		 */
+		if (!results.containsKey(checkFileExists[checkFileExists.length - 1])) {
 
-		Iterator<String> crunchifyIterator = records.iterator();
+			jgit.cloneGit(message, checkFileExists[checkFileExists.length - 1]);
 
-		while (crunchifyIterator.hasNext()) {
-			String str = crunchifyIterator.next();
+			DataEnginnerModel map = getAnalysis(jgit.searchRepository(checkFileExists[checkFileExists.length - 1]),
+					message);
+			results.put(checkFileExists[checkFileExists.length - 1], map);
 
-			String[] checkFileExists = str.split("/");
+			objectMapper = new ObjectMapper();
+			File fileT = new File(DATASET + "resultsTemp" + JSONT);
+			FileUtils.writeStringToFile(fileT, objectMapper.writeValueAsString(map) + ",\n", StandardCharsets.UTF_8,
+					true);
+			
+			
+			
 
-			Path p4 = FileSystems.getDefault()
-					.getPath(SRCDATASET + checkFileExists[checkFileExists.length - 1] + JSONT);
+			/**
+			 * Clean up When we are done processing a messages the tempwork directory is
+			 * deleted to avoid keep heavy files in the file system
+			 * 
+			 */
 
-			if (System.getProperty("os.name").equals("Linux")) {
-
-				Optional<String> directoryChecking = Optional.of(System.getProperty(USERDIR)
-						+ "/src/main/resources/tempwork/" + checkFileExists[checkFileExists.length - 1] + "/");
-
-				if (!Files.exists(p4) && !Files.isDirectory(Paths.get(directoryChecking.get()))) {
-					logger.info("json doesnt exists/repository doesnt exists");
-					/**
-					 * json and directory doesnt exist, clone it first and check if processing has
-					 * been done else process
-					 * 
-					 */
-
-					jgit.cloneGit(str, checkFileExists[checkFileExists.length - 1]);
-
-					Map<String, DataEnginnerModel> map = getAnalysis(
-							jgit.searchRepository(checkFileExists[checkFileExists.length - 1]), str,
-							checkFileExists[checkFileExists.length - 1]);
-
-					String firstKey = map.keySet().stream().findFirst().get();
-					DataEnginnerModel body = map.get(firstKey);
-
-					FileUtils.touch(new File(SRCDATASET + firstKey + JSONT));
-					File file2 = new File(SRCDATASET + firstKey + JSONT);
-
-					try (FileWriter writer = new FileWriter(file2);) {
-						writer.write(objectMapper.writeValueAsString(body));
-
-					} catch (Exception e) {
-						logger.info(e.getMessage());
-					}
-
-				} else if (!Files.exists(p4) && Files.isDirectory(Paths.get(directoryChecking.get()))) {
-
-					logger.info("json doesnt exists/repository exists");
-
-					/**
-					 * 
-					 * json doesnt exist but directory exist so we check if processing has been done
-					 * else process
-					 * 
-					 */
-
-					Map<String, DataEnginnerModel> map = getAnalysis(
-							jgit.searchRepository(checkFileExists[checkFileExists.length - 1]), str,
-							checkFileExists[checkFileExists.length - 1]);
-
-					String firstKey = map.keySet().stream().findFirst().get();
-					DataEnginnerModel body = map.get(firstKey);
-
-					FileUtils.touch(new File(SRCDATASET + firstKey + JSONT));
-					File file2 = new File(SRCDATASET + firstKey + JSONT);
-
-					try (FileWriter writer = new FileWriter(file2);) {
-						writer.write(objectMapper.writeValueAsString(body));
-
-					} catch (Exception e) {
-
-					}
-
-				} else if (Files.exists(p4)) {
-					// do nothing
-					logger.info(
-							"json exists/we dont care about repository/if you want to force another analysis. Use the force/update analysis feature");
-				}
-
-			}
+			FileUtils.deleteDirectory(new File(TEMPWORKDIR));
 		}
-
-		/**
-		 * Clean up When we are done processing messages the tempwork directory is
-		 * deleted to avoid keep heavy files in the file system
-		 * 
-		 */
-
-		FileUtils.deleteDirectory(new File(TEMPWORKDIR));
 
 	}
 
@@ -221,14 +146,11 @@ public class Consumer {
 	 * @return
 	 * @throws IOException
 	 */
-	private Map<String, DataEnginnerModel> getAnalysis(List<String> filesFound, String repo, String repoName)
-			throws IOException {
+	private DataEnginnerModel getAnalysis(List<String> filesFound, String repo) throws IOException {
 
 		logger.info("Analysis logic running");
 
 		Iterator<String> iterator = filesFound.iterator();
-
-		Map<String, DataEnginnerModel> mapToRuturn = new HashMap<>();
 
 		linesOfCodeRepository = 0;
 		nextFactorOverall = new ArrayList<>();
@@ -271,7 +193,7 @@ public class Consumer {
 					if (index == 0) {
 						index = line2.indexOf("for");
 						nestFactor++;
-					} else if (index != 0 && line2.indexOf("for") > index) {
+					} else if (line2.indexOf("for") > index) {
 						nestFactor++;
 
 					}
@@ -306,9 +228,8 @@ public class Consumer {
 		dataEnginnerModel.setAverageParameters(averageParameters.stream().mapToInt(val -> val).average().orElse(0.0));
 		dataEnginnerModel.setAverageVariables(averageVariables.stream().mapToInt(val -> val).average().orElse(0.0));
 
-		mapToRuturn.put(repoName, dataEnginnerModel);
+		return dataEnginnerModel;
 
-		return mapToRuturn;
 	}
 
 	/**
@@ -409,5 +330,7 @@ public class Consumer {
 		}
 
 	}
+	
+	
 
 }

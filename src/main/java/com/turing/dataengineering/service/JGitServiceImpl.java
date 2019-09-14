@@ -1,8 +1,8 @@
 package com.turing.dataengineering.service;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.eclipse.jgit.api.Git;
@@ -38,7 +38,9 @@ public class JGitServiceImpl implements JGitService {
 
 		try {
 
-			Git.cloneRepository().setURI(repoUrl).setDirectory(new File(TEMPWORKDIR + dir)).call();
+			Git.cloneRepository().setURI(repoUrl).setBranchesToClone(Arrays.asList("refs/heads/master")).setDirectory(new File(TEMPWORKDIR + dir)).call();
+			
+			
 
 		} catch (GitAPIException e) {
 

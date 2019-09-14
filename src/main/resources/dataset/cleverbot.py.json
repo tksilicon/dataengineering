@@ -1,1 +1,0 @@
-{"repository_url":"https://github.com/folz/cleverbot.py","numberOfLines":43,"libraries":"[__future__,.cleverbot,distutils.core,builtins,unittest,cleverbot]","nestingFactor":0.0,"codeDuplication":null,"averageParameters":0.0,"averageVariables":0.1095890410958904}
