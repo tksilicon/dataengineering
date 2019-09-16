@@ -80,14 +80,14 @@ public class Consumer {
 		logger.info(message);
 
 		String[] checkFileExists = message.split("/");
-	      FileUtils.deleteDirectory(new File(TEMPWORKDIR));
+	    FileUtils.deleteDirectory(new File(TEMPWORKDIR));
 
 		if (!results.containsKey(checkFileExists[checkFileExists.length - 1])) {
 
 			 jgit.cloneGit(message, checkFileExists[checkFileExists.length - 1]);
 
 			List<String> filesFound = jgit.searchRepository(checkFileExists[checkFileExists.length - 1]);
-			logger.info(filesFound.toString());
+			
 			DataEnginnerModel map = getAnalysis(filesFound, message);
 
 			
