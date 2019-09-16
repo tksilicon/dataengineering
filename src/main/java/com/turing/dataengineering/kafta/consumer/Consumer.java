@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -48,7 +49,7 @@ public class Consumer {
 
 	private static final String COMMENTS = "\"\"\"";
 	private static final String IMPORTCOM = "import";
-	private static final String DATASET = System.getProperty("user.dir")+ "/dataset/";
+	private static final String DATASET = System.getProperty("user.dir") + "/dataset/";
 	private static final String JSONT = ".json";
 	private static final String TEMPWORKDIR = "src/main/resources/tempwork";
 	private static final String GROUPID = "group_id";
@@ -63,11 +64,8 @@ public class Consumer {
 	@Autowired
 	public Consumer(JGitService jgit) {
 		this.jgit = jgit;
-		
 
 	}
-
-	
 
 	/**
 	 * 
@@ -82,22 +80,23 @@ public class Consumer {
 		logger.info(message);
 
 		String[] checkFileExists = message.split("/");
+		// FileUtils.deleteDirectory(new File(TEMPWORKDIR));
 
 		if (!results.containsKey(checkFileExists[checkFileExists.length - 1])) {
 
-			jgit.cloneGit(message, checkFileExists[checkFileExists.length - 1]);
+			// jgit.cloneGit(message, checkFileExists[checkFileExists.length - 1]);
 
-			DataEnginnerModel map = getAnalysis(jgit.searchRepository(checkFileExists[checkFileExists.length - 1]),
-					message);
+			List<String> filesFound = jgit.searchRepository(checkFileExists[checkFileExists.length - 1]);
+			logger.info(filesFound.toString());
+			DataEnginnerModel map = getAnalysis(filesFound, message);
+
+			// codeDuplication(filesFound);
 			results.put(checkFileExists[checkFileExists.length - 1], map);
 
 			objectMapper = new ObjectMapper();
-			File fileT = new File(DATASET + "resultsTemp" + JSONT);
+			File fileT = new File(DATASET + "results" + JSONT);
 			FileUtils.writeStringToFile(fileT, objectMapper.writeValueAsString(map) + ",\n", StandardCharsets.UTF_8,
 					true);
-			
-			
-			
 
 			/**
 			 * Clean up When we are done processing a messages the tempwork directory is
@@ -105,7 +104,7 @@ public class Consumer {
 			 * 
 			 */
 
-			FileUtils.deleteDirectory(new File(TEMPWORKDIR));
+			// FileUtils.deleteDirectory(new File(TEMPWORKDIR));
 		}
 
 	}
@@ -126,11 +125,14 @@ public class Consumer {
 	String line2;
 	Integer lines;
 
-	/**
-	 * Using deque instead of stack because it is synchonizable
-	 */
-	Deque<String> stack;
 	Integer nestFactor;
+	int index = 0;
+	int trackerForComments = -1;
+	
+
+	HashSet<String> duplicates;
+	List<String> theList;
+
 
 	/**
 	 * 
@@ -140,9 +142,9 @@ public class Consumer {
 	 *
 	 * 
 	 * @param filesFound the files found per repository
-	 * @param repo       the repository url
-	 * @param repoName   the short name of the repo which correspond to its
-	 *                   directory on the file system
+	 * @param repo       the repository url the short name of the repo which
+	 *                   correspond to its directory on the file system is derived
+	 *                   from it.
 	 * @return
 	 * @throws IOException
 	 */
@@ -159,6 +161,11 @@ public class Consumer {
 		averageVariables = new ArrayList<>();
 
 		String str = null;
+		
+
+		duplicates = new LinkedHashSet<>();
+		theList = new ArrayList<>();
+
 
 		while (iterator.hasNext()) {
 
@@ -170,35 +177,20 @@ public class Consumer {
 
 			lines = 0;
 
-			/**
-			 * Using deque instead of stack because it is synchonizable
-			 */
-			stack = new ArrayDeque<>();
-			int index = 0;
+			index = 0;
 			nestFactor = 0;
+			trackerForComments = -1;
+			
+			
 
 			while ((line2 = reader2.readLine()) != null) {
+
+				
 
 				findParameters(line2);
 				findCount(line2);
 				findComments(line2);
-
-				/**
-				 * The nesting factor is tracked here with index of first for should be less
-				 * than the next indexes of nesting for.
-				 */
-
-				if (line2.trim().startsWith("for") && !line2.startsWith("#") && stack.isEmpty()) {
-
-					if (index == 0) {
-						index = line2.indexOf("for");
-						nestFactor++;
-					} else if (line2.indexOf("for") > index) {
-						nestFactor++;
-
-					}
-
-				}
+				findNestingFactor(line2);
 
 			}
 
@@ -214,11 +206,23 @@ public class Consumer {
 		 * The data generated is packaged in DataEnginnerModel and returned.
 		 */
 
+		
 		StringBuilder build = new StringBuilder("[");
+		
+		
 
 		String strLib = StringUtils.join(packages, ",");
 		build.append(strLib);
 		build.append("]");
+		logger.info(duplicates.size()+ "|" +theList.size());
+		
+		
+		
+		
+		float percent = ((theList.size()-duplicates.size()) * 100.0f) / theList.size();
+		
+		
+		
 
 		DataEnginnerModel dataEnginnerModel = new DataEnginnerModel();
 		dataEnginnerModel.setRepository_url(repo);
@@ -227,10 +231,15 @@ public class Consumer {
 		dataEnginnerModel.setNestingFactor(nextFactorOverall.stream().mapToInt(val -> val).average().orElse(0.0));
 		dataEnginnerModel.setAverageParameters(averageParameters.stream().mapToInt(val -> val).average().orElse(0.0));
 		dataEnginnerModel.setAverageVariables(averageVariables.stream().mapToInt(val -> val).average().orElse(0.0));
+		dataEnginnerModel.setCodeDuplication(percent);
+		
+		
 
 		return dataEnginnerModel;
 
 	}
+
+	
 
 	/**
 	 * 
@@ -274,6 +283,10 @@ public class Consumer {
 		}
 	}
 
+	/*
+	 * tracker comments with """
+	 */
+
 	/**
 	 * 
 	 * Eliminate all lines that begin with comments. Comments come in three forms
@@ -289,15 +302,23 @@ public class Consumer {
 	 */
 	private void findComments(String line2) {
 
-		if (line2.startsWith(COMMENTS) && stack.isEmpty()) {
-			stack.push(COMMENTS);
-		} else if (!line2.startsWith(COMMENTS) && !stack.isEmpty()) {
+		if (line2.startsWith(COMMENTS) && trackerForComments == -1) {
+			trackerForComments = 1;
+
+		} else if (line2.startsWith(COMMENTS) && trackerForComments == 1) {
+			trackerForComments = -1;
+
+		} else if (line2.startsWith("#")) {
 			// do nothing
-		} else if (line2.startsWith(COMMENTS) && !stack.isEmpty()) {
-			stack.pop();
 
-		} else if (!line2.startsWith(COMMENTS) && stack.isEmpty()) {
+		} else if (trackerForComments == -1 && !line2.trim().isEmpty()) {
 
+			lines++;
+			
+			
+			
+			duplicates.add(line2);
+			theList.add(line2);
 			/**
 			 * 
 			 * All imports come in two form, they start with from or import the next few
@@ -322,15 +343,31 @@ public class Consumer {
 				}
 			}
 
-			if (!line2.isEmpty() && !line2.startsWith("#")) {
-
-				lines++;
-
-			}
 		}
 
 	}
-	
-	
+
+	/**
+	 * 
+	 * The nesting factor is tracked here with index of first for should be less
+	 * than the next indexes of nesting for.
+	 * 
+	 * @param line2
+	 */
+	private void findNestingFactor(String line2) {
+
+		if (line2.trim().startsWith("for") && !line2.startsWith("#") && trackerForComments == -1) {
+
+			if (index == 0) {
+				index = line2.indexOf("for");
+				nestFactor++;
+			} else if (line2.indexOf("for") > index) {
+				nestFactor++;
+
+			}
+
+		}
+
+	}
 
 }

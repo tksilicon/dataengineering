@@ -13,7 +13,7 @@ public class DataEnginnerModel {
 	Integer numberOfLines;
 	String libraries;
 	Double nestingFactor;
-	Double codeDuplication;
+	float codeDuplication;
 	Double averageParameters;
 	Double averageVariables;
 	
